@@ -168,7 +168,6 @@ public class DeviceConnectFragment extends Fragment implements DeviceConnectCont
                 flash(socketPic);
             }
 
-
             socketTypeName.setText(String.valueOf(deviceSocket.getSocketId()));
             int x = deviceSocket.getCoordinate_x();
             int y = deviceSocket.getCoordinate_y();
