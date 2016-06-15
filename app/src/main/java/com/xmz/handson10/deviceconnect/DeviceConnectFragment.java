@@ -3,26 +3,31 @@ package com.xmz.handson10.deviceconnect;
 import android.content.Intent;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
+import android.support.design.widget.CoordinatorLayout;
 import android.support.design.widget.FloatingActionButton;
+import android.support.design.widget.Snackbar;
 import android.support.v4.app.Fragment;
+import android.support.v4.media.TransportPerformer;
 import android.support.v4.view.GravityCompat;
 import android.support.v4.widget.DrawerLayout;
 import android.support.v4.widget.NestedScrollView;
 import android.util.Log;
 import android.view.DragEvent;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.animation.AlphaAnimation;
 import android.view.animation.Animation;
 import android.view.animation.AnimationSet;
-import android.view.animation.RotateAnimation;
 import android.view.animation.ScaleAnimation;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.xmz.handson10.R;
 import com.xmz.handson10.addeventdevice.AddEventDeviceActivity;
@@ -37,6 +42,12 @@ import java.util.List;
  */
 public class DeviceConnectFragment extends Fragment implements DeviceConnectContract.View {
 
+//    private LinearLayout connect_linearLayout;
+
+    private boolean flash_state;
+
+    private boolean lock_state = false;
+
     private DeviceConnectContract.Presenter mPresenter;
 
     private DrawerLayout mDrawerLayout;
@@ -45,7 +56,9 @@ public class DeviceConnectFragment extends Fragment implements DeviceConnectCont
 
     private LinearLayout mDeviceLL;
 
-    private FrameLayout mFrameLayout;
+//    private FrameLayout mFrameLayout;
+
+    private android.support.design.widget.CoordinatorLayout coordinatorLayout;
 
     private FrameLayout mContentFL;
 
@@ -65,17 +78,38 @@ public class DeviceConnectFragment extends Fragment implements DeviceConnectCont
     private DeviceConnectOnDragListener mDeviceConnectOnDragListener;
 
 
-
     public DeviceConnectFragment() {
 
     }
 
-    public static DeviceConnectFragment newInstance() { return new DeviceConnectFragment(); }
+    public static DeviceConnectFragment newInstance() {
+        return new DeviceConnectFragment();
+    }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+    }
 
+    @Override
+    public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
+        inflater.inflate(R.menu.menu_toggle, menu);
+        Log.d("LOCK_STATE", String.valueOf(lock_state));
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.menu_lock:
+                lock_state = true;
+                toastMsg("界面已锁定");
+                break;
+            case R.id.menu_unlock:
+                lock_state = false;
+                toastMsg("界面已解锁");
+                break;
+        }
+        return super.onOptionsItemSelected(item);
     }
 
     @Override
@@ -83,6 +117,7 @@ public class DeviceConnectFragment extends Fragment implements DeviceConnectCont
         super.onResume();
         mPresenter.start();
     }
+
 
     @Override
     public void setPresenter(DeviceConnectContract.Presenter presenter) {
@@ -94,6 +129,9 @@ public class DeviceConnectFragment extends Fragment implements DeviceConnectCont
     public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container,
                              @Nullable Bundle savedInstanceState) {
         View root = inflater.inflate(R.layout.connect_frag, container, false);
+
+        coordinatorLayout = (CoordinatorLayout) root.findViewById(R.id.coordinatorLayout);
+//        connect_linearLayout = (LinearLayout) root.findViewById(R.id.connect_linner_layout);
 
         mDrawerLayout = (DrawerLayout) root.findViewById(R.id.drawer_layout_frag);
 
@@ -122,9 +160,10 @@ public class DeviceConnectFragment extends Fragment implements DeviceConnectCont
         });
 
 
-
         mDeviceSocketTouchMoveListener = new DeviceSocketTouchMoveListener();
         mDeviceConnectOnDragListener = new DeviceConnectOnDragListener();
+
+        setHasOptionsMenu(true);
 
         return root;
     }
@@ -163,12 +202,15 @@ public class DeviceConnectFragment extends Fragment implements DeviceConnectCont
                 Log.d(String.valueOf(deviceSocket.getSocketId()), "no connected");
                 socketPic.setImageResource(R.drawable.socket);
             } else {
-                Log.d(String.valueOf(deviceSocket.getSocketId()), "Picture ID" + " "  + deviceSocket.getSocketId());
+                Log.d(String.valueOf(deviceSocket.getSocketId()), "Picture ID" + " " + deviceSocket.getSocketId());
                 socketPic.setImageResource(deviceSocket.getPicSrcId());
-                flash(socketPic);
+                Log.i("deviceSocket.getConnectedDeviceId", String.valueOf(deviceSocket.getConnectedDeviceId()));
+                if (flash_state){
+                    flash(socketPic);
+                }
             }
 
-            socketTypeName.setText(String.valueOf(deviceSocket.getSocketId()));
+            socketTypeName.setText("端口" + String.valueOf(deviceSocket.getSocketId()));
             int x = deviceSocket.getCoordinate_x();
             int y = deviceSocket.getCoordinate_y();
 
@@ -186,14 +228,12 @@ public class DeviceConnectFragment extends Fragment implements DeviceConnectCont
             compLL.setOnDragListener(mDeviceConnectOnDragListener);
 
             mContentFL.addView(compLL, layoutParam);
-
-//            flash((ImageView) compLL.getChildAt(0));
-
         }
     }
 
-    private class DevicesTouchListener implements  View.OnTouchListener {
+    private class DevicesTouchListener implements View.OnTouchListener {
         DeviceDescription mDeviceDescription;
+
         @Override
         public boolean onTouch(View v, MotionEvent event) {
             mDeviceDescription = (DeviceDescription) v.getTag();
@@ -210,37 +250,42 @@ public class DeviceConnectFragment extends Fragment implements DeviceConnectCont
         FrameLayout.LayoutParams layoutParams;
         int socketId;
         boolean isMove = false;
+
         @Override
         public boolean onTouch(View v, MotionEvent event) {
-            socketId = ((DeviceSocket) v.getTag()).getSocketId();
-            final int X = (int) event.getRawX();
-            final int Y = (int) event.getRawY();
-            switch ( event.getAction()) {
-                case MotionEvent.ACTION_DOWN:
-                    isMove = false;
-                    layoutParams =
-                            (FrameLayout.LayoutParams) v.getLayoutParams();
-                    mSocketX = X - layoutParams.leftMargin;
-                    mSocketY = Y - layoutParams.topMargin;
-                    return true;
-                case MotionEvent.ACTION_UP:
-                    mDeviceSocketListener.onSocketMove(socketId, X - mSocketX, Y - mSocketY);
-                    if (!isMove) {
-                        Log.d("up", "is not move");
-                        Log.d("socketId Click", String.valueOf(socketId));
-                        mPresenter.disConnectDevice(socketId);
-                    }
-                    break;
-                case MotionEvent.ACTION_MOVE:
-                    isMove = true;
-                    layoutParams.leftMargin = X - mSocketX;
-                    layoutParams.topMargin = Y - mSocketY;
-                    layoutParams.rightMargin = -200;
-                    layoutParams.bottomMargin = -200;
-                    v.setLayoutParams(layoutParams);
-                    break;
+
+            if (!lock_state){
+                socketId = ((DeviceSocket) v.getTag()).getSocketId();
+                final int X = (int) event.getRawX();
+                final int Y = (int) event.getRawY();
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        flash_state = false;
+                        isMove = false;
+                        layoutParams =
+                                (FrameLayout.LayoutParams) v.getLayoutParams();
+                        mSocketX = X - layoutParams.leftMargin;
+                        mSocketY = Y - layoutParams.topMargin;
+                        return true;
+                    case MotionEvent.ACTION_UP:
+                        mDeviceSocketListener.onSocketMove(socketId, X - mSocketX, Y - mSocketY);
+                        if (!isMove) {
+                            Log.d("up", "is not move");
+                            Log.d("socketId Click", String.valueOf(socketId));
+                            mPresenter.disConnectDevice(socketId);
+                        }
+                        break;
+                    case MotionEvent.ACTION_MOVE:
+                        isMove = true;
+                        layoutParams.leftMargin = X - mSocketX;
+                        layoutParams.topMargin = Y - mSocketY;
+                        layoutParams.rightMargin = -200;
+                        layoutParams.bottomMargin = -200;
+                        v.setLayoutParams(layoutParams);
+                        break;
+                }
+                mContentFL.invalidate();
             }
-            mContentFL.invalidate();
             return true;
         }
     }
@@ -248,32 +293,35 @@ public class DeviceConnectFragment extends Fragment implements DeviceConnectCont
     public class DeviceConnectOnDragListener implements View.OnDragListener {
         DeviceSocket mDeviceSocket;
         DeviceDescription mDeviceDescription;
+
         @Override
         public boolean onDrag(View v, DragEvent event) {
-            mDeviceSocket = (DeviceSocket) v.getTag();
-            switch (event.getAction()) {
-                case DragEvent.ACTION_DRAG_STARTED:
-                    mPresenter.loadDeviceSocketsAnimation();
-                    Log.d("onDrag","start");
-                    closeDeviceDescriptionsDrawer();
-                    break;
-                case DragEvent.ACTION_DRAG_ENDED:
-                    mPresenter.loadDeviceSockets();
-                    Log.d("ended", String.valueOf(mDeviceSocket.getSocketId()));
-                    break;
-                case DragEvent.ACTION_DRAG_LOCATION:
-                    Log.d("location", String.valueOf(mDeviceSocket.getSocketId()));
-                    break;
-                case DragEvent.ACTION_DRAG_EXITED:
-                    Log.d("exited", String.valueOf(mDeviceSocket.getSocketId()));
-                    break;
-                case DragEvent.ACTION_DRAG_ENTERED:
-                    Log.d("entered", String.valueOf(mDeviceSocket.getSocketId()));
-                    break;
-                case DragEvent.ACTION_DROP:
-                    mPresenter.connectDevice(mDeviceSocket.getSocketId(), mConnectedTypeId, mConnectedTypeFeature);
-                    break;
-
+            if (!lock_state){
+                mDeviceSocket = (DeviceSocket) v.getTag();
+                switch (event.getAction()) {
+                    case DragEvent.ACTION_DRAG_STARTED:
+                        mPresenter.loadDeviceSocketsAnimation();
+                        Log.d("onDrag", "start");
+                        closeDeviceDescriptionsDrawer();
+                        break;
+                    case DragEvent.ACTION_DRAG_ENDED:
+                        mPresenter.loadDeviceSockets();
+                        Log.d("ended", String.valueOf(mDeviceSocket.getSocketId()));
+                        break;
+                    case DragEvent.ACTION_DRAG_LOCATION:
+                        Log.d("location", String.valueOf(mDeviceSocket.getSocketId()));
+                        break;
+                    case DragEvent.ACTION_DRAG_EXITED:
+                        Log.d("exited", String.valueOf(mDeviceSocket.getSocketId()));
+                        break;
+                    case DragEvent.ACTION_DRAG_ENTERED:
+                        Log.d("entered", String.valueOf(mDeviceSocket.getSocketId()));
+                        break;
+                    case DragEvent.ACTION_DROP:
+                        mPresenter.connectDevice(mDeviceSocket.getSocketId(), mConnectedTypeId, mConnectedTypeFeature);
+                        flash_state = true;
+                        break;
+                }
             }
             return true;
         }
@@ -288,7 +336,7 @@ public class DeviceConnectFragment extends Fragment implements DeviceConnectCont
     public void showAvailableSocketsAnimation(List<DeviceSocket> deviceSockets) {
         Log.d("childCount", String.valueOf(mContentFL.getChildCount()));
 
-        for (int i=0; i<mContentFL.getChildCount(); i++) {
+        for (int i = 0; i < mContentFL.getChildCount(); i++) {
 
             LinearLayout compLL = (LinearLayout) mContentFL.getChildAt(i);
             DeviceSocket deviceSocket = (DeviceSocket) compLL.getTag();
@@ -315,6 +363,7 @@ public class DeviceConnectFragment extends Fragment implements DeviceConnectCont
         mDrawerLayout.closeDrawer(GravityCompat.START);
     }
 
+    /*为控件添加动画效果*/
     @Override
     public void flash(ImageView imageView) {
         /*旋转*/
@@ -349,14 +398,24 @@ public class DeviceConnectFragment extends Fragment implements DeviceConnectCont
         //参数8：y轴的值，0.5f表明是以自身这个控件的一半长度为x轴
             /*由远及近*/
         ScaleAnimation scaleAnimation = new ScaleAnimation(
-                0, 0.5f,0,0.5f,
-                Animation.RELATIVE_TO_SELF,0.5f,
-                Animation.RELATIVE_TO_SELF,0.5f);
+                0, 0.5f, 0, 0.5f,
+                Animation.RELATIVE_TO_SELF, 0.5f,
+                Animation.RELATIVE_TO_SELF, 0.5f);
         scaleAnimation.setDuration(300);
         animationSet.addAnimation(scaleAnimation);
         imageView.startAnimation(animationSet);
+
     }
 
+    @Override
+    public void toastMsg(String message) {
+        Snackbar.make(coordinatorLayout, message, Snackbar.LENGTH_SHORT).setAction("ok", new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                view.invalidate();
+            }
+        }).show();
+    }
 
     public interface DeviceSocketListener {
 
@@ -383,4 +442,64 @@ public class DeviceConnectFragment extends Fragment implements DeviceConnectCont
 
         }
     };
+
+//    class ImageEffect extends View {
+//
+//        Paint paint;
+//
+//        public ImageEffect(Context context) {
+//            super(context);
+//            paint = new Paint();//初始化画笔
+//            paint.setAntiAlias(true);//去锯齿
+//            paint.setShadowLayer(5f, 5.0f, 5.0F, Color.BLACK);
+//            paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_IN));
+//        }
+//
+//        public void onDraw(Canvas canvas) {
+//            super.onDraw(canvas);
+//            int posX = 20;
+//            int posY = 50;
+//            int PicWidth, PicHeight;
+//
+//            Drawable drawable = getResources().getDrawable(R.drawable.light);
+//            Drawable dbe = getResources().getDrawable(R.drawable.light).mutate();
+//            Drawable drawTest = getResources().getDrawable(R.drawable.light);
+//            Bitmap bmp = BitmapFactory.decodeResource(getResources(),R.drawable.light);
+//            PicWidth = drawable.getIntrinsicWidth();
+//            PicHeight = drawable.getIntrinsicHeight();
+//
+//            drawTest.setBounds(posX,(2*posY) + PicHeight,posX + PicWidth,(2*posY) + 2*PicHeight);
+//            drawable.setBounds(posX,posY,posX+PicWidth,posY+PicHeight);
+//            dbe.setBounds(0,0,PicWidth,PicHeight);
+//
+//            canvas.drawColor(Color.WHITE);
+//            canvas.save(Canvas.MATRIX_SAVE_FLAG);
+//            dbe.setColorFilter(0x7f000000,PorterDuff.Mode.SRC_IN);
+//            canvas.translate( (posX+(int) (0.9 * (PicWidth/2))), posY + PicHeight/2);
+//
+//            canvas.skew(-0.9F, 0.0F);//图像倾斜效果。
+//            canvas.scale(1.0f, 0.5f);//图像（其实是画布）缩放，Y方向缩小为1/2。
+//            dbe.draw(canvas);//此处为画原图像影子效果图，比原图先画，则会在下层。
+//            drawable.clearColorFilter();
+//            canvas.restore();
+//
+//            canvas.save(Canvas.MATRIX_SAVE_FLAG);
+//            drawable.draw(canvas);//此处为画原图像，由于canvas有层次效果，因此会盖在影子之上。
+//            canvas.restore();
+//
+//            //默认无效果原图
+//            canvas.save(Canvas.MATRIX_SAVE_FLAG);
+//            drawTest.draw(canvas);
+//            canvas.restore();
+//
+//            //图片阴影效果
+//            Rect rect = new Rect(2*posX + PicWidth + 3, 2*posY + PicHeight + 3, 2*posX + 2*PicWidth - 2, 2*posY + 2*PicHeight - 2);
+//            //由于图片的实际尺寸比显示出来的图像要大一些，因此需要适当更改下大小，以达到较好的效果
+//
+//            RectF rectF = new RectF(rect);
+//            canvas.drawRoundRect(rectF, 10f, 10f, paint);//在原有矩形基础上，画成圆角矩形，同时带有阴影层。
+//            canvas.drawBitmap(bmp, 2*posX + PicWidth, 2*posY + PicHeight, null);//画上原图。
+//            canvas.restore();
+//        }
+//    }
 }

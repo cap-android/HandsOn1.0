@@ -32,6 +32,8 @@ public interface DeviceConnectContract {
         void closeDeviceDescriptionsDrawer();
 
         void flash(ImageView imageView);
+
+        void toastMsg(String message);
     }
 
     interface Presenter extends BasePresenter {

@@ -3,8 +3,7 @@
       xmlns:tools="http://schemas.android.com/tools"
       tools:context="com.xmz.handson10.HomeActivity">
     <item
-        android:id="@+id/action_settings"
-        android:orderInCategory="100"
+        android:id="@+id/menu_clear"
         android:title="@string/action_settings"
-        app:showAsAction="never"/>
+        app:showAsAction="never" />
 </menu>
